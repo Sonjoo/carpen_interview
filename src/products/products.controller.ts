@@ -8,6 +8,7 @@ import {
   Put,
   Query,
 } from '@nestjs/common';
+import { ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
 import { CreateProductDto } from './dto/product.dto';
 import { Product } from './products.entity';
@@ -20,16 +21,19 @@ export class ProductController {
 
   @Post()
   @HttpCode(204)
+  @ApiTags('product')
   create(@Body() createDto: CreateProductDto) {
     this.productService.createProduct(createDto);
   }
 
   @Get(':id')
+  @ApiTags('product')
   findOne(@Param('id') id: number): Promise<Product> {
     return this.productService.findOne(id);
   }
 
   @Get()
+  @ApiTags('product')
   find(
     @Paginate() query: PaginateQuery,
     @Query('status') status: ProductStatus = ProductStatus.OPEN,
@@ -38,6 +42,7 @@ export class ProductController {
   }
 
   @Put(':id/examine')
+  @ApiTags('product')
   @HttpCode(204)
   requestForExamine(@Param('id') id: number) {
     this.productService.requestForExamine(id);
@@ -45,11 +50,17 @@ export class ProductController {
 
   @Put('open')
   @HttpCode(204)
+  @ApiTags('product')
   openProduct(@Body() body: { productId: number; editorId: number }) {
     this.productService.openProduct(body.productId, body.editorId);
   }
 
   @Get('author/:id')
+  @ApiTags('product')
+  @ApiResponse({
+    status: 200,
+    description: '작가를 기준으로 상품을 조회한다',
+  })
   findByAuthor(
     @Paginate() query: PaginateQuery,
     @Param('id') authorId: number,

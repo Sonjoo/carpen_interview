@@ -91,3 +91,53 @@ export class ModifyProductDto {
   })
   modifier: ProductModifier;
 }
+
+export class ModifyOpenProductDto {
+  @ApiProperty({
+    example: '1',
+    description: '수정 대상 상품 id',
+  })
+  productId: number;
+
+  @ApiProperty({
+    example: '테스트 작품 제목',
+    required: false,
+  })
+  title?: string;
+
+  @ApiProperty({
+    example: '테스트 작품 상세 설명',
+    required: false,
+  })
+  description?: string;
+
+  @ApiProperty({
+    example: 1,
+    description: '수정하려는 상품 상세의 언어',
+    required: false,
+  })
+  nationId: number;
+
+  @ApiProperty({
+    example: ['testurllink'],
+    description: '상품 상세 설명상 추가되는 file의 url',
+    required: false,
+  })
+  imageUrls?: string[];
+
+  @ApiProperty({
+    example: 1,
+    enum: ProductModifier,
+    required: true,
+  })
+  modifier: ProductModifier;
+
+  setDataFrom(dto: ModifyProductDto): void {
+    this.description = dto.description;
+    this.imageUrls = dto.imageUrls;
+    this.modifier = dto.modifier;
+    this.nationId = dto.nationId;
+    this.productId = dto.productId;
+    this.title = dto.title;
+  }
+}

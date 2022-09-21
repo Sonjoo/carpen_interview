@@ -8,9 +8,13 @@ import {
   Put,
   Query,
 } from '@nestjs/common';
-import { ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
-import { CreateProductDto, ModifyProductDto } from './dto/product.dto';
+import {
+  CreateProductDto,
+  ModifyOpenProductDto,
+  ModifyProductDto,
+} from './dto/product.dto';
 import { Product } from './products.entity';
 import { ProductStatus } from './products.enum';
 import { ProductService } from './products.service';
@@ -37,8 +41,17 @@ export class ProductController {
 
   @Put(':id')
   @ApiTags('product')
-  modifyProduct(@Body() dto: ModifyProductDto) {
-    this.productService.modifyProduct(dto);
+  modifyProduct(
+    @Query('status') status: ProductStatus = ProductStatus.CREATED,
+    @Body() dto: ModifyProductDto,
+  ) {
+    if (status === ProductStatus.OPEN) {
+      const openProductDto = new ModifyOpenProductDto();
+      openProductDto.setDataFrom(dto);
+      this.productService.modifyOpenProduct(openProductDto);
+    } else {
+      this.productService.modifyProduct(dto);
+    }
   }
 
   @Get(':id')
@@ -47,17 +60,17 @@ export class ProductController {
     return this.productService.findOne(id);
   }
 
-  @Put(':id/examine')
+  @Put(':id/status/examine')
   @ApiTags('product')
   @HttpCode(204)
   requestForExamine(@Param('id') id: number) {
     this.productService.requestForExamine(id);
   }
 
-  @Put('open')
+  @Put(':id/status/open')
   @HttpCode(204)
   @ApiTags('product')
-  openProduct(@Body() body: { productId: number; editorId: number }) {
+  changeStatus(@Body() body: { productId: number; editorId?: number }) {
     this.productService.openProduct(body.productId, body.editorId);
   }
 

@@ -139,14 +139,23 @@ export class ProductDetail {
   nation: Nation;
 
   createProductDetailFrom(
-    dto: CreateProductDto,
+    title: string,
+    description: string,
     product: Product,
     nation: Nation,
+    modifier?: ProductModifier,
+    status?: ProductDetailStatus,
   ) {
     this.product = product;
-    this.title = dto.title;
-    this.description = dto.description;
+    this.title = title;
+    this.description = description;
     this.nation = nation;
+    if (modifier) {
+      this.lastModifiedBy = modifier;
+    }
+    if (status) {
+      this.status = status;
+    }
     return this;
   }
 

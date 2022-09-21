@@ -2,15 +2,19 @@ import { ForbiddenException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Nation } from '../common.entity';
 import { Author } from '../users/users.author.entity';
-import { DataSource, EntityManager, Repository } from 'typeorm';
-import { CreateProductDto, ModifyProductDto } from './dto/product.dto';
+import { DataSource, EntityManager, Not, Repository } from 'typeorm';
+import {
+  CreateProductDto,
+  ModifyOpenProductDto,
+  ModifyProductDto,
+} from './dto/product.dto';
 import {
   Product,
   ProductAsset,
   ProductDetail,
   ProductImage,
 } from './products.entity';
-import { ProductStatus } from './products.enum';
+import { ProductDetailStatus, ProductStatus } from './products.enum';
 import { paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
 import { Editor } from 'src/users/users.editor.entity';
 
@@ -123,7 +127,12 @@ export class ProductService {
         new Product().createFromDto(dto, author),
       );
       const productDetail = await transactionManager.save(
-        new ProductDetail().createProductDetailFrom(dto, product, nation),
+        new ProductDetail().createProductDetailFrom(
+          dto.title,
+          dto.description,
+          product,
+          nation,
+        ),
       );
 
       await transactionManager.save(
@@ -133,6 +142,57 @@ export class ProductService {
       await transactionManager.save(
         ProductImage.createProductImages(dto.imageUrls, productDetail),
       );
+    });
+  }
+
+  async modifyOpenProduct(dto: ModifyOpenProductDto): Promise<void> {
+    let nation: Nation;
+    if (dto.nationId) {
+      nation = await this.nationRepository.findOneByOrFail({
+        id: dto.nationId,
+      });
+    } else {
+      nation = await this.nationRepository.findOneByOrFail({
+        nationCode: Nation.baseNationCode,
+      });
+    }
+
+    const product = await this.productRepository.findOne({
+      where: {
+        id: dto.productId,
+        productDetails: {
+          status: Not(ProductDetailStatus.USING),
+          nation: { id: nation.id },
+        },
+      },
+      relations: { productDetails: true },
+    });
+
+    const detail =
+      product.productDetails.length > 0
+        ? product.productDetails.at(0)
+        : new ProductDetail().createProductDetailFrom(
+            dto.title,
+            dto.description,
+            product,
+            nation,
+            dto.modifier,
+            ProductDetailStatus.PENDING,
+          );
+
+    this.dataSource.transaction(async (transactionManager: EntityManager) => {
+      if (dto.imageUrls && dto.imageUrls.length > 0) {
+        const oldImages = await this.imageRepository.findBy({
+          productDetail: { id: detail.id },
+        });
+
+        await transactionManager.remove(oldImages);
+        await transactionManager.save(
+          ProductImage.createProductImages(dto.imageUrls, detail),
+        );
+      }
+
+      await transactionManager.save(detail);
     });
   }
 
@@ -169,7 +229,7 @@ export class ProductService {
 
       await transactionManager.save(product);
 
-      if (dto.assetUrls && dto.assetUrls.length > 0) {
+      if (dto.assetUrls && dto.imageUrls.length > 0) {
         const oldAssets = await this.assetRepository.findBy({
           product: { id: dto.productId },
         });

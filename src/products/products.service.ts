@@ -12,6 +12,7 @@ import {
 } from './products.entity';
 import { ProductStatus } from './products.enum';
 import { paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
+import { Editor } from 'src/users/users.editor.entity';
 
 @Injectable()
 export class ProductService {
@@ -22,6 +23,8 @@ export class ProductService {
     private readonly authorRepository: Repository<Author>,
     @InjectRepository(Nation)
     private readonly nationRepository: Repository<Nation>,
+    @InjectRepository(Editor)
+    private readonly editorRepository: Repository<Editor>,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -41,16 +44,19 @@ export class ProductService {
     });
   }
 
-  findByStatus(
-    status: ProductStatus,
+  find(
     pageOption: PaginateQuery,
+    status: ProductStatus,
   ): Promise<Paginated<Product>> {
     const queryBuilder = this.productRepository.createQueryBuilder('product');
     queryBuilder
       .leftJoinAndSelect('product.productDetails', 'detail')
       .leftJoinAndSelect('product.productAssets', 'asset')
-      .leftJoinAndSelect('detail.productImages', 'image')
-      .where('product.status = :status', { status: status });
+      .leftJoinAndSelect('detail.productImages', 'image');
+
+    if (status !== null && status !== undefined) {
+      queryBuilder.andWhere('product.status = :status', { status: status });
+    }
 
     return paginate(pageOption, queryBuilder, {
       sortableColumns: ['id', 'status'],
@@ -69,13 +75,26 @@ export class ProductService {
       .leftJoinAndSelect('detail.productImages', 'image')
       .where('product.authorId = :authorId', { authorId: authorId });
 
-    if (status !== null) {
+    if (status !== null && status !== undefined) {
       queryBuilder.andWhere('product.status = :status', { status: status });
     }
 
     return paginate(pageOption, queryBuilder, {
       sortableColumns: ['id', 'status'],
     });
+  }
+
+  async openProduct(productId: number, editorId: number) {
+    const product = await this.productRepository.findOneByOrFail({
+      id: productId,
+    });
+    const editor = await this.editorRepository.findOneByOrFail({
+      id: editorId,
+    });
+
+    product.status = ProductStatus.OPEN;
+    product.editor = editor;
+    this.productRepository.save(product);
   }
 
   async requestForExamine(id: number) {

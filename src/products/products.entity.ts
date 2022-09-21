@@ -69,30 +69,8 @@ export class Product {
   editor: Editor | null;
 
   createFromDto(dto: CreateProductDto, author: Author): Product {
-    const assets = [];
-    for (const url of dto.assetUrls) {
-      const asset = new ProductAsset();
-      asset.url = url;
-      assets.push(asset);
-    }
-
-    const productDetail = new ProductDetail();
-    productDetail.title = dto.title;
-    productDetail.description = dto.description;
-
-    const images = [];
-    for (const url of dto.imageUrls) {
-      const image = new ProductImage();
-      image.url = url;
-      images.push(image);
-    }
-
-    productDetail.productImages = images;
-
     this.basePrice = dto.basePrice;
     this.author = author;
-    this.productAssets = assets;
-    this.productDetails = [productDetail];
 
     return this;
   }
@@ -131,6 +109,18 @@ export class ProductDetail {
 
   @ManyToOne(() => Nation, (nation) => nation.productDetails)
   nation: Nation;
+
+  createProductDetailFrom(
+    dto: CreateProductDto,
+    product: Product,
+    nation: Nation,
+  ) {
+    this.product = product;
+    this.title = dto.title;
+    this.description = dto.description;
+    this.nation = nation;
+    return this;
+  }
 }
 
 @Entity()
@@ -152,6 +142,21 @@ export class ProductImage {
     (productDetail) => productDetail.productImages,
   )
   productDetail: ProductDetail;
+
+  static createProductImages(
+    urls: string[],
+    productDetail: ProductDetail,
+  ): ProductImage[] {
+    const images = [];
+    for (const url of urls) {
+      const image = new ProductImage();
+      image.url = url;
+      image.productDetail = productDetail;
+      images.push(image);
+    }
+
+    return images;
+  }
 }
 
 @Entity()
@@ -170,4 +175,16 @@ export class ProductAsset {
 
   @ManyToOne(() => Product, (product) => product.productAssets)
   product: Product;
+
+  static createProductAssets(urls: string[], product: Product): ProductAsset[] {
+    const assets = [];
+    for (const url of urls) {
+      const asset = new ProductAsset();
+      asset.product = product;
+      asset.url = url;
+      assets.push(asset);
+    }
+
+    return assets;
+  }
 }

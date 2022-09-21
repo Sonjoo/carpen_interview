@@ -19,16 +19,25 @@ export class Author extends BaseEntity {
 
   @Column({
     unique: true,
+    select: false,
   })
   email: string;
 
-  @Column()
+  @Column({
+    select: false,
+  })
   pw: string;
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn({
+    name: 'created_at',
+    select: false,
+  })
   createdAt: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
+  @UpdateDateColumn({
+    name: 'updated_at',
+    select: false,
+  })
   updatedAt: Date;
 
   @OneToMany(() => Product, (product) => product.author)

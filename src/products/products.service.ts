@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Nation } from '../common.entity';
 import { Author } from '../users/users.author.entity';
@@ -163,6 +163,9 @@ export class ProductService {
           id: dto.productId,
         })
       ).modifyProduct(dto.basePrice, dto.modifier);
+      if (product.status === ProductStatus.OPEN) {
+        throw new ForbiddenException();
+      }
 
       await transactionManager.save(product);
 

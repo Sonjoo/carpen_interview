@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Nation } from '../common.entity';
 import { Author } from '../users/users.author.entity';
 import { DataSource, EntityManager, Repository } from 'typeorm';
-import { CreateProductDto } from './dto/product.dto';
+import { CreateProductDto, ModifyProductDto } from './dto/product.dto';
 import {
   Product,
   ProductAsset,
@@ -25,6 +25,12 @@ export class ProductService {
     private readonly nationRepository: Repository<Nation>,
     @InjectRepository(Editor)
     private readonly editorRepository: Repository<Editor>,
+    @InjectRepository(ProductDetail)
+    private readonly detailRepository: Repository<ProductDetail>,
+    @InjectRepository(ProductAsset)
+    private readonly assetRepository: Repository<ProductAsset>,
+    @InjectRepository(ProductImage)
+    private readonly imageRepository: Repository<ProductImage>,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -108,7 +114,9 @@ export class ProductService {
       id: dto.authorId,
     });
 
-    const nation = await this.nationRepository.findOneBy({ nationCode: 'ko' });
+    const nation = await this.nationRepository.findOneBy({
+      nationCode: Nation.baseNationCode,
+    });
 
     this.dataSource.transaction(async (transactionManager: EntityManager) => {
       const product = await transactionManager.save(
@@ -125,6 +133,62 @@ export class ProductService {
       await transactionManager.save(
         ProductImage.createProductImages(dto.imageUrls, productDetail),
       );
+    });
+  }
+
+  async modifyProduct(dto: ModifyProductDto): Promise<void> {
+    let nation: Nation;
+    if (dto.nationId) {
+      nation = await this.nationRepository.findOneByOrFail({
+        id: dto.nationId,
+      });
+    } else {
+      nation = await this.nationRepository.findOneByOrFail({
+        nationCode: Nation.baseNationCode,
+      });
+    }
+
+    const detail = (
+      await this.detailRepository.findOneOrFail({
+        where: { product: { id: dto.productId }, nation: { id: nation.id } },
+        relations: {
+          product: true,
+        },
+      })
+    ).modifyProductDetail(dto.title, dto.description, dto.modifier);
+
+    this.dataSource.transaction(async (transactionManager: EntityManager) => {
+      const product = (
+        await this.productRepository.findOneBy({
+          id: dto.productId,
+        })
+      ).modifyProduct(dto.basePrice, dto.modifier);
+
+      await transactionManager.save(product);
+
+      if (dto.assetUrls && dto.assetUrls.length > 0) {
+        const oldAssets = await this.assetRepository.findBy({
+          product: { id: dto.productId },
+        });
+
+        await transactionManager.remove(oldAssets);
+        await transactionManager.save(
+          ProductAsset.createProductAssets(dto.assetUrls, detail.product),
+        );
+      }
+
+      if (dto.imageUrls && dto.assetUrls.length > 0) {
+        const oldImages = await this.imageRepository.findBy({
+          productDetail: { id: detail.id },
+        });
+
+        await transactionManager.remove(oldImages);
+        await transactionManager.save(
+          ProductImage.createProductImages(dto.imageUrls, detail),
+        );
+      }
+
+      await transactionManager.save(detail);
     });
   }
 }

@@ -25,6 +25,9 @@ export class Nation {
 
   @OneToMany(() => ExchangeRate, (exchangeRate) => exchangeRate.nation)
   exchangeRates: ExchangeRate[];
+
+  static baseNationCode = 'ko';
+  static defaultTranslationNationCode = 'en';
 }
 
 @Entity()

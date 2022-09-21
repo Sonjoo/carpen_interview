@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
-import { CreateProductDto } from './dto/product.dto';
+import { CreateProductDto, ModifyProductDto } from './dto/product.dto';
 import { Product } from './products.entity';
 import { ProductStatus } from './products.enum';
 import { ProductService } from './products.service';
@@ -26,12 +26,6 @@ export class ProductController {
     this.productService.createProduct(createDto);
   }
 
-  @Get(':id')
-  @ApiTags('product')
-  findOne(@Param('id') id: number): Promise<Product> {
-    return this.productService.findOne(id);
-  }
-
   @Get()
   @ApiTags('product')
   find(
@@ -39,6 +33,18 @@ export class ProductController {
     @Query('status') status: ProductStatus = ProductStatus.OPEN,
   ): Promise<Paginated<Product>> {
     return this.productService.find(query, status);
+  }
+
+  @Put(':id')
+  @ApiTags('product')
+  modifyProduct(@Body() dto: ModifyProductDto) {
+    this.productService.modifyProduct(dto);
+  }
+
+  @Get(':id')
+  @ApiTags('product')
+  findOne(@Param('id') id: number): Promise<Product> {
+    return this.productService.findOne(id);
   }
 
   @Put(':id/examine')

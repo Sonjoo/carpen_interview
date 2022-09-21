@@ -11,7 +11,11 @@ import {
   Unique,
   UpdateDateColumn,
 } from 'typeorm';
-import { ProductDetailStatus, ProductStatus } from './products.enum';
+import {
+  ProductDetailStatus,
+  ProductModifier,
+  ProductStatus,
+} from './products.enum';
 import { Nation } from '../common.entity';
 import { Editor } from 'src/users/users.editor.entity';
 import { CreateProductDto } from './dto/product.dto';
@@ -46,6 +50,13 @@ export class Product {
   })
   status: ProductStatus;
 
+  @Column({
+    type: 'enum',
+    enum: ProductModifier,
+    default: ProductModifier.AUTHOR,
+  })
+  lastModifiedBy: ProductModifier;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
 
@@ -74,6 +85,16 @@ export class Product {
 
     return this;
   }
+
+  modifyProduct(basePrice: number, modifier: ProductModifier): Product {
+    this.lastModifiedBy = modifier;
+
+    if (basePrice) {
+      this.basePrice = basePrice;
+    }
+
+    return this;
+  }
 }
 
 @Entity()
@@ -94,6 +115,13 @@ export class ProductDetail {
 
   @Column({ type: 'text' })
   description: string;
+
+  @Column({
+    type: 'enum',
+    enum: ProductModifier,
+    default: ProductModifier.AUTHOR,
+  })
+  lastModifiedBy: ProductModifier;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
@@ -119,6 +147,17 @@ export class ProductDetail {
     this.title = dto.title;
     this.description = dto.description;
     this.nation = nation;
+    return this;
+  }
+
+  modifyProductDetail(
+    title: string,
+    description: string,
+    modifier: ProductModifier,
+  ): ProductDetail {
+    this.title = title ? title : this.title;
+    this.description = description ? description : this.title;
+    this.lastModifiedBy = modifier;
     return this;
   }
 }

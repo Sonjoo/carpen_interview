@@ -9,3 +9,8 @@ export enum ProductDetailStatus {
   PENDING = 2,
   EXAMINING = 3,
 }
+
+export enum ProductModifier {
+  EDITOR = 1,
+  AUTHOR = 2,
+}

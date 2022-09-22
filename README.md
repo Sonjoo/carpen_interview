@@ -24,7 +24,8 @@
 > - Behavior 를 기반으로 코드 작성  
 > - Apidocs 를 기반으로 Api 확인이 가능한 view 작성    
 > --- 
-
+![erd](acon_erd.png)
+![usecase](acon_usecase.png)
 ---
 
 ## 작업하며 고민했던 것 

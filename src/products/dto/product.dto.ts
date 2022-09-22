@@ -141,3 +141,10 @@ export class ModifyOpenProductDto {
     this.title = dto.title;
   }
 }
+
+export class OpenProductDto {
+  @ApiProperty({ example: 1 })
+  productId: number;
+  @ApiProperty({ example: 1 })
+  editorId?: number;
+}

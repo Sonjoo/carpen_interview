@@ -1,3 +1,4 @@
+import { HttpModule } from '@nestjs/axios';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Nation } from 'src/common.entity';
@@ -25,6 +26,7 @@ import { ProductService } from './products.service';
       Nation,
       Editor,
     ]),
+    HttpModule,
   ],
   controllers: [ProductController],
   providers: [ProductService],

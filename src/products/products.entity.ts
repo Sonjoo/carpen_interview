@@ -106,7 +106,7 @@ export class ProductDetail {
   @Column({
     type: 'enum',
     enum: ProductDetailStatus,
-    default: ProductDetailStatus.PENDING,
+    default: ProductDetailStatus.USING,
   })
   status: ProductDetailStatus;
 

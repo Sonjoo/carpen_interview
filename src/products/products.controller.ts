@@ -8,12 +8,14 @@ import {
   Put,
   Query,
 } from '@nestjs/common';
-import { ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiProperty, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
+import { Nation } from 'src/common.entity';
 import {
   CreateProductDto,
   ModifyOpenProductDto,
   ModifyProductDto,
+  OpenProductDto,
 } from './dto/product.dto';
 import { Product } from './products.entity';
 import { ProductStatus } from './products.enum';
@@ -34,14 +36,33 @@ export class ProductController {
   @ApiTags('product')
   find(
     @Paginate() query: PaginateQuery,
-    @Query('status') status: ProductStatus = ProductStatus.OPEN,
+    @Query('status') productStatus: ProductStatus = ProductStatus.OPEN,
   ): Promise<Paginated<Product>> {
-    return this.productService.find(query, status);
+    return this.productService.find(query, productStatus);
+  }
+
+  @Get('buyer')
+  @ApiTags('buyer', 'product')
+  findByBuyer(
+    @Paginate() query: PaginateQuery,
+    @Query('nation_code') nationCode: string = Nation.baseNationCode,
+  ) {
+    return this.productService.findByBuyer(query, nationCode);
+  }
+
+  @Get('exmining/open')
+  @ApiTags('product')
+  findExaminingOpenProduct(@Paginate() query: PaginateQuery) {
+    return this.productService.findExaminingOpenProduct(query);
   }
 
   @Put(':id')
   @ApiTags('product')
+  @ApiResponse({
+    status: 204,
+  })
   modifyProduct(
+    @Param('id') productId: number,
     @Query('status') status: ProductStatus = ProductStatus.CREATED,
     @Body() dto: ModifyProductDto,
   ) {
@@ -61,21 +82,33 @@ export class ProductController {
   }
 
   @Put(':id/status/examine')
-  @ApiTags('product')
+  @ApiTags('product', 'author')
   @HttpCode(204)
-  requestForExamine(@Param('id') id: number) {
-    this.productService.requestForExamine(id);
+  requestForExamine(
+    @Param('id') id: number,
+    @Query('status') status: ProductStatus = ProductStatus.CREATED,
+    @Query('nation_code') nationCode: string = Nation.baseNationCode,
+  ) {
+    if (status === ProductStatus.OPEN) {
+      this.productService.requestForExamineOpenProduct(id, nationCode);
+    } else {
+      this.productService.requestForExamine(id);
+    }
   }
 
   @Put(':id/status/open')
   @HttpCode(204)
   @ApiTags('product')
-  changeStatus(@Body() body: { productId: number; editorId?: number }) {
+  changeStatus(
+    @Param('id') productId: number,
+    @Body()
+    body: OpenProductDto,
+  ) {
     this.productService.openProduct(body.productId, body.editorId);
   }
 
   @Get('author/:id')
-  @ApiTags('product')
+  @ApiTags('product', 'author')
   @ApiResponse({
     status: 200,
     description: '작가를 기준으로 상품을 조회한다',

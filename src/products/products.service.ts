@@ -17,6 +17,7 @@ import {
 import { ProductDetailStatus, ProductStatus } from './products.enum';
 import { paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
 import { Editor } from 'src/users/users.editor.entity';
+import { HttpService } from '@nestjs/axios';
 
 @Injectable()
 export class ProductService {
@@ -35,6 +36,7 @@ export class ProductService {
     private readonly assetRepository: Repository<ProductAsset>,
     @InjectRepository(ProductImage)
     private readonly imageRepository: Repository<ProductImage>,
+    private readonly httpService: HttpService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -73,6 +75,21 @@ export class ProductService {
     });
   }
 
+  findExaminingOpenProduct(pageOption: PaginateQuery) {
+    const queryBuilder = this.productRepository.createQueryBuilder('product');
+    queryBuilder
+      .leftJoinAndSelect('product.productDetails', 'detail')
+      .leftJoinAndSelect('product.productAssets', 'asset')
+      .leftJoinAndSelect('detail.productImages', 'image')
+      .andWhere('detail.status = :status', {
+        status: ProductDetailStatus.EXAMINING,
+      });
+
+    return paginate(pageOption, queryBuilder, {
+      sortableColumns: ['id', 'status'],
+    });
+  }
+
   findByAuthor(
     authorId: number,
     pageOption: PaginateQuery,
@@ -94,6 +111,39 @@ export class ProductService {
     });
   }
 
+  async findByBuyer(pageOption: PaginateQuery, nationCode: string) {
+    let nation = await this.nationRepository.findOneByOrFail({
+      nationCode: nationCode,
+    });
+
+    if (!nation.isTranslatable) {
+      nation = await this.nationRepository.findOneBy({
+        nationCode: Nation.defaultTranslationNationCode,
+      });
+    }
+
+    const queryBuilder = this.productRepository.createQueryBuilder('product');
+    queryBuilder
+      .leftJoinAndSelect('product.productDetails', 'detail')
+      .leftJoinAndSelect('product.productAssets', 'asset')
+      .leftJoinAndSelect('detail.productImages', 'image')
+      .leftJoinAndSelect('detail.nation', 'nation')
+      .leftJoinAndSelect('nation.exchangeRate', 'exchangeRate')
+      .andWhere('product.status = :productStatus', {
+        productStatus: ProductStatus.OPEN,
+      })
+      .andWhere('detail.status = :status', {
+        status: ProductDetailStatus.USING,
+      })
+      .andWhere('detail.nationId = :nationId', {
+        nationId: nation.id,
+      });
+
+    return paginate(pageOption, queryBuilder, {
+      sortableColumns: ['id', 'status'],
+    });
+  }
+
   async openProduct(productId: number, editorId: number) {
     const product = await this.productRepository.findOneByOrFail({
       id: productId,
@@ -104,13 +154,97 @@ export class ProductService {
 
     product.status = ProductStatus.OPEN;
     product.editor = editor;
+    await this.productRepository.save(product);
+    await this.createTranslations(product);
+  }
+
+  async createTranslations(product: Product) {
+    const base = await this.detailRepository.findOneBy({
+      product: { id: product.id },
+    });
+
+    const nations = await this.nationRepository.findBy({
+      nationCode: Not(Nation.baseNationCode),
+      isTranslatable: true,
+    });
+
+    const details = [];
+
+    for (const nation of nations) {
+      let target = nation.nationCode;
+      if (target === 'cn') {
+        target = 'zh-CN';
+      } else if (target === 'tw') {
+        target = 'zh-TW';
+      }
+      const titleData = {
+        source: Nation.baseNationCode,
+        target: target,
+        text: base.title,
+      };
+
+      const descriptionData = {
+        source: Nation.baseNationCode,
+        target: target,
+        text: base.description,
+      };
+
+      const detail = new ProductDetail();
+      detail.nation = nation;
+      detail.title = await this.translate(titleData);
+      detail.description = await this.translate(descriptionData);
+      detail.product = product;
+      details.push(detail);
+    }
+
+    await this.detailRepository.save(details);
+  }
+
+  async translate(data) {
+    const response = await this.httpService.axiosRef.post(
+      'https://naveropenapi.apigw.ntruss.com/nmt/v1/translation',
+      data,
+      {
+        headers: {
+          'X-NCP-APIGW-API-KEY-ID': 'iopktfa4zy',
+          'X-NCP-APIGW-API-KEY': 'iDChFn9WInbAYZsF1ShEMPPy9ogwdnujv2YB8tuX',
+          ContentType: 'application/json',
+        },
+      },
+    );
+
+    return response.data.message.result.translatedText;
+  }
+
+  async requestForExamine(productId: number): Promise<void> {
+    const product = await this.productRepository.findOneByOrFail({
+      id: productId,
+    });
+    product.status = ProductStatus.EXAMINING;
     this.productRepository.save(product);
   }
 
-  async requestForExamine(id: number) {
-    const product = await this.productRepository.findOneByOrFail({ id: id });
-    product.status = ProductStatus.EXAMINING;
-    this.productRepository.save(product);
+  async requestForExamineOpenProduct(
+    productId: number,
+    nationCode: string,
+  ): Promise<void> {
+    const product = await this.productRepository.findOneOrFail({
+      where: {
+        id: productId,
+        productDetails: {
+          nation: { nationCode: nationCode },
+          status: ProductDetailStatus.PENDING,
+        },
+      },
+      relations: {
+        productDetails: true,
+      },
+    });
+
+    const detail = product.productDetails.at(0);
+    detail.status = ProductDetailStatus.EXAMINING;
+
+    this.detailRepository.save(detail);
   }
 
   async createProduct(dto: CreateProductDto) {
@@ -165,7 +299,11 @@ export class ProductService {
           nation: { id: nation.id },
         },
       },
-      relations: { productDetails: true },
+      relations: {
+        productDetails: {
+          productImages: true,
+        },
+      },
     });
 
     const detail =
@@ -182,11 +320,10 @@ export class ProductService {
 
     this.dataSource.transaction(async (transactionManager: EntityManager) => {
       if (dto.imageUrls && dto.imageUrls.length > 0) {
-        const oldImages = await this.imageRepository.findBy({
-          productDetail: { id: detail.id },
-        });
+        if (detail.productImages && detail.productImages.length > 0) {
+          await transactionManager.remove(detail.productImages);
+        }
 
-        await transactionManager.remove(oldImages);
         await transactionManager.save(
           ProductImage.createProductImages(dto.imageUrls, detail),
         );
@@ -207,22 +344,28 @@ export class ProductService {
         nationCode: Nation.baseNationCode,
       });
     }
-
-    const detail = (
-      await this.detailRepository.findOneOrFail({
-        where: { product: { id: dto.productId }, nation: { id: nation.id } },
+    const product = (
+      await this.productRepository.findOneOrFail({
+        where: {
+          id: dto.productId,
+          productDetails: {
+            nation: { id: nation.id },
+          },
+        },
         relations: {
-          product: true,
+          productAssets: true,
+          productDetails: {
+            productImages: true,
+          },
         },
       })
-    ).modifyProductDetail(dto.title, dto.description, dto.modifier);
+    ).modifyProduct(dto.basePrice, dto.modifier);
+
+    const detail = product.productDetails
+      .at(0)
+      .modifyProductDetail(dto.title, dto.description, dto.modifier);
 
     this.dataSource.transaction(async (transactionManager: EntityManager) => {
-      const product = (
-        await this.productRepository.findOneBy({
-          id: dto.productId,
-        })
-      ).modifyProduct(dto.basePrice, dto.modifier);
       if (product.status === ProductStatus.OPEN) {
         throw new ForbiddenException();
       }
@@ -230,22 +373,14 @@ export class ProductService {
       await transactionManager.save(product);
 
       if (dto.assetUrls && dto.imageUrls.length > 0) {
-        const oldAssets = await this.assetRepository.findBy({
-          product: { id: dto.productId },
-        });
-
-        await transactionManager.remove(oldAssets);
+        await transactionManager.remove(product.productAssets);
         await transactionManager.save(
           ProductAsset.createProductAssets(dto.assetUrls, detail.product),
         );
       }
 
       if (dto.imageUrls && dto.assetUrls.length > 0) {
-        const oldImages = await this.imageRepository.findBy({
-          productDetail: { id: detail.id },
-        });
-
-        await transactionManager.remove(oldImages);
+        await transactionManager.remove(detail.productImages);
         await transactionManager.save(
           ProductImage.createProductImages(dto.imageUrls, detail),
         );

@@ -10,27 +10,6 @@ import {
 import { ProductDetail } from './products/products.entity';
 
 @Entity()
-export class Nation {
-  @PrimaryGeneratedColumn()
-  id: number;
-
-  @Column({ unique: true })
-  nationCode: string;
-
-  @Column()
-  isTranslatable: boolean;
-
-  @OneToMany(() => ProductDetail, (productDetail) => productDetail.nation)
-  productDetails: ProductDetail[];
-
-  @OneToMany(() => ExchangeRate, (exchangeRate) => exchangeRate.nation)
-  exchangeRates: ExchangeRate[];
-
-  static baseNationCode = 'ko';
-  static defaultTranslationNationCode = 'en';
-}
-
-@Entity()
 export class ExchangeRate {
   @PrimaryGeneratedColumn()
   id: number;
@@ -39,7 +18,7 @@ export class ExchangeRate {
   dealBasR: number;
 
   @Column()
-  curUnit: Date;
+  curUnit: string;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
@@ -47,6 +26,29 @@ export class ExchangeRate {
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
-  @ManyToOne(() => Nation, (nation) => nation.exchangeRates)
-  nation: Nation;
+  @OneToMany(() => Nation, (nation) => nation.exchangeRate)
+  nations: Nation[];
+}
+
+@Entity()
+export class Nation {
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column({ unique: true })
+  nationCode: string;
+
+  @Column({
+    default: true,
+  })
+  isTranslatable: boolean;
+
+  @OneToMany(() => ProductDetail, (productDetail) => productDetail.nation)
+  productDetails: ProductDetail[];
+
+  @ManyToOne(() => ExchangeRate, (exchangeRate) => exchangeRate.nations)
+  exchangeRate: ExchangeRate;
+
+  static baseNationCode = 'ko';
+  static defaultTranslationNationCode = 'en';
 }
